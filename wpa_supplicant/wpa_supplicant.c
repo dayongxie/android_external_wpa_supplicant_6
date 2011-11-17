@@ -2062,6 +2062,9 @@ int wpa_supplicant_remove_iface(struct wpa_global *global,
 	}
 
 	wpa_printf(MSG_DEBUG, "Removing interface %s", wpa_s->ifname);
+#ifdef ANDROID
+	property_set("wpa_supplicant.interface", "outof");
+#endif
 
 	wpa_supplicant_deinit_iface(wpa_s);
 	os_free(wpa_s);

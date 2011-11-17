@@ -25,7 +25,9 @@
 #include "eap_peer/eap_methods.h"
 
 #include <sys/stat.h>
-
+#ifdef ANDROID
+#include "private/android_filesystem_config.h"
+#endif
 
 /**
  * wpa_config_get_line - Read the next configuration file line
@@ -957,6 +959,9 @@ int wpa_config_write(const char *name, struct wpa_config *config)
 	fflush(f);
 	fsync(fileno(f));
 	fclose(f);
+#ifdef ANDROID
+	chown(tmpfile, AID_SYSTEM, AID_WIFI);
+#endif
 	if (tmpfile != name) {
 		rc = rename(tmpfile, name);
 		free(tmpfile);

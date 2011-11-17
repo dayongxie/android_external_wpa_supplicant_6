@@ -31,6 +31,10 @@
 #include "wps_supplicant.h"
 #include "wps/wps.h"
 
+#define ANDROID_IBSS_HACK
+#define ANDROID_IBSS_SUFFIX "(adhoc)"
+#define ANDROID_IBSS_SUFFIX_LEN strlen(ANDROID_IBSS_SUFFIX)
+
 static int wpa_supplicant_global_iface_list(struct wpa_global *global,
 					    char *buf, int len);
 static int wpa_supplicant_global_iface_interfaces(struct wpa_global *global,
@@ -341,9 +345,16 @@ static int wpa_supplicant_ctrl_iface_status(struct wpa_supplicant *wpa_s,
 					ssid_len = _res;
 				_ssid = ssid_buf;
 			}
-			ret = os_snprintf(pos, end - pos, "ssid=%s\nid=%d\n",
-					  wpa_ssid_txt(_ssid, ssid_len),
-					  ssid->id);
+#ifdef ANDROID_IBSS_HACK
+			if (ssid->mode == IEEE80211_MODE_IBSS)
+ 				ret = os_snprintf(pos, end - pos, "ssid=%s "ANDROID_IBSS_SUFFIX"\nid=%d\n",
+ 						  wpa_ssid_txt(_ssid, ssid_len),
+ 						  ssid->id);
+ 			else
+#endif
+				ret = os_snprintf(pos, end - pos, "ssid=%s\nid=%d\n",
+							wpa_ssid_txt(_ssid, ssid_len),
+							ssid->id);
 			if (ret < 0 || ret >= end - pos)
 				return pos - buf;
 			pos += ret;
@@ -777,12 +788,15 @@ static int wpa_supplicant_ctrl_iface_scan_result(
 			return -1;
 		pos += ret;
 	}
-	if (res->caps & IEEE80211_CAP_IBSS) {
-		ret = os_snprintf(pos, end - pos, "[IBSS]");
-		if (ret < 0 || ret >= end - pos)
-			return -1;
-		pos += ret;
-	}
+
+#ifndef ANDROID_IBSS_HACK
+  	if (res->caps & IEEE80211_CAP_IBSS) {
+  		ret = os_snprintf(pos, end - pos, "[IBSS]");
+  		if (ret < 0 || ret >= end - pos)
+  			return -1;
+  		pos += ret;
+  	}
+#endif
     /* Just to make the fields line up nicely when printed */
 	if (!ie && !ie2) {
 		ret = os_snprintf(pos, end - pos, "\t");
@@ -791,8 +805,16 @@ static int wpa_supplicant_ctrl_iface_scan_result(
 		pos += ret;
 	}
 	ie = wpa_scan_get_ie(res, WLAN_EID_SSID);
-	ret = os_snprintf(pos, end - pos, "\t%s",
-			  ie ? wpa_ssid_txt(ie + 2, ie[1]) : "");
+
+#ifdef ANDROID_IBSS_HACK
+ 	if (res->caps & IEEE80211_CAP_IBSS)
+ 		ret = os_snprintf(pos, end - pos, "\t%s "ANDROID_IBSS_SUFFIX,
+ 			  ie ? wpa_ssid_txt(ie + 2, ie[1]) : "");
+ 	else
+#endif
+        ret = os_snprintf(pos, end - pos, "\t%s",
+                          ie ? wpa_ssid_txt(ie + 2, ie[1]) : "");
+
 	if (ret < 0 || ret >= end - pos)
 		return -1;
 	pos += ret;
@@ -1085,6 +1107,22 @@ static int wpa_supplicant_ctrl_iface_set_network(
 		return -1;
 	}
 
+#ifdef ANDROID_IBSS_HACK
+ 	if (os_strcmp(name, "ssid") == 0) {
+ 		if ((value[0] == '"') && 
+ 		    (os_strlen(value) > ANDROID_IBSS_SUFFIX_LEN) &&
+ 		    (os_strncmp(value+os_strlen(value)-ANDROID_IBSS_SUFFIX_LEN-1, ANDROID_IBSS_SUFFIX, ANDROID_IBSS_SUFFIX_LEN)==0)) {
+ 			if (wpa_config_set(ssid, "mode", "1", 0) < 0) {
+ 				wpa_printf(MSG_DEBUG, "CTRL_IFACE: failed to set IBSS on '%s'",
+ 					  value);
+ 				return -1;
+ 			}
+ 			value[os_strlen(value)-ANDROID_IBSS_SUFFIX_LEN-2]='"';
+ 			value[os_strlen(value)-ANDROID_IBSS_SUFFIX_LEN-1]='\0';
+ 		}
+ 	}
+#endif
+
 	if (wpa_config_set(ssid, name, value, 0) < 0) {
 		wpa_printf(MSG_DEBUG, "CTRL_IFACE: Failed to set network "
 			   "variable '%s'", name);
@@ -1149,6 +1187,13 @@ static int wpa_supplicant_ctrl_iface_get_network(
 		os_free(value);
 		return -1;
 	}
+
+#ifdef ANDROID_IBSS_HACK
+ 	if ((os_strcmp(name, "ssid") == 0) && (ssid->mode == IEEE80211_MODE_IBSS)) {
+ 		res = strlcat(buf,ANDROID_IBSS_SUFFIX"\"", buflen);
+ 		buf[strlen(buf)-ANDROID_IBSS_SUFFIX_LEN-2]=' ';
+ 	}
+#endif
 
 	os_free(value);
 

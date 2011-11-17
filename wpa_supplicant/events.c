@@ -33,6 +33,9 @@
 #include "wpas_glue.h"
 #include "wps_supplicant.h"
 
+#ifdef ANDROID
+#include <cutils/properties.h>
+#endif
 
 static int wpa_supplicant_select_config(struct wpa_supplicant *wpa_s)
 {
@@ -1079,6 +1082,9 @@ wpa_supplicant_event_interface_status(struct wpa_supplicant *wpa_s,
 
 	switch (data->interface_status.ievent) {
 	case EVENT_INTERFACE_ADDED:
+#ifdef ANDROID
+		property_set("wpa_supplicant.interface", "ready");
+#endif
 		if (!wpa_s->interface_removed)
 			break;
 		wpa_s->interface_removed = 0;
