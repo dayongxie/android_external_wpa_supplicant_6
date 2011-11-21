@@ -216,6 +216,7 @@ char * os_rel2abs_path(const char *rel_path)
 
 int os_program_init(void)
 {
+#if 0
 #ifdef ANDROID
 	/* We ignore errors here since errors are normal if we
 	 * are already running as non-root.
@@ -237,7 +238,7 @@ int os_program_init(void)
 	cap.inheritable = 0;
 	capset(&header, &cap);
 #endif
-
+#endif
 	return 0;
 }
 
